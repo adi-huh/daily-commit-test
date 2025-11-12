@@ -1,0 +1,41 @@
+name: Update README Daily
+
+on:
+  schedule:
+    - cron: '30 2 * * *'  # runs every day at 02:30 UTC (~8:00 AM IST)
+  workflow_dispatch:      # allows manual runs
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up git user
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "actions@users.noreply.github.com"
+
+      - name: Compute stats and update README
+        run: |
+          NOW="$(date -u +"%Y-%m-%d %H:%M UTC")"
+          COMMIT_COUNT="$(git rev-list --count HEAD || echo 0)"
+          NEW_SECTION="**Last run:** ${NOW}\n**Total commits:** ${COMMIT_COUNT}\n"
+
+          # Replace between markers
+          awk -v new="$NEW_SECTION" '
+            BEGIN { inside=0 }
+            /<!--START_SECTION:daily-->/ { print; print ""; print new; inside=1; next }
+            /<!--END_SECTION:daily-->/ { inside=0; print; next }
+            { if (!inside) print }
+          ' README.md > README.tmp && mv README.tmp README.md
+
+      - name: Commit & push changes
+        run: |
+          git add README.md
+          git commit -m "chore: update daily stats [ci skip]" || echo "No changes to commit"
+          git push
